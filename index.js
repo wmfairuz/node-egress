@@ -8,7 +8,7 @@ function Route( path ) {
     self.path = path;
 
     //Transform the path into a regexp
-    var paramNames = [];
+    var paramNames = self.paramNames = [];
     var regex = path.replace(/:(\w+)/g, function(match, p1) {
 	paramNames.push(p1);
 	return '([\\w%:\\$\\+]+)';
@@ -44,15 +44,16 @@ function Route( path ) {
     self.resolve = function(path, req, res, next) {
 	var results = path.match(self.regex);
 	if(results) {
-	    if(results[0] == results.input) {
-		var params = {};
-		for(var i = 0; i < paramNames.length; i++) {
-		    var name = paramNames[i];
-		    params[name] = results[i+1];
-		}
+	    var params = {};
 
-		req.params = params;
-		
+	    for(var i = 0; i < paramNames.length; i++) {
+		var name = paramNames[i];
+		params[name] = results[i+1];
+	    }
+
+	    req.params = params;
+
+	    if(results[0] == results.input) {
 		var method = ({
 		    'GET': 'get',
 		    'POST': 'post',
@@ -64,12 +65,11 @@ function Route( path ) {
 		})[req.method];
 
 		if(method && self.methods[method]) {
-		    self.methods[method](req, res);;
+		    self.methods[method](req, res);
 		} else {
-		    console.log('405 Method not allowed');
-		    /* Method not allowed */
-		    /*res.writeHead(405);
-		    res.end();*/
+		    /* Route found, but method not defined */
+		    res.writeHead(405);
+		    res.end();
 		}
 
 	    } else {
@@ -96,26 +96,31 @@ module.exports = function() {
 
 	for(var i in routes) {
 	    route = routes[i];
+	    var results = path.match(route.regex);
 
-	    var result = path.match(route.regex);
-	    /* if is a full match */
-	    if(result && result[0].length == result.input.length) {
+	    if(results && results[0].length == results.input.length) {
+		for(var j = 0; j < results.length-1; j++) {
+		    var name = route.paramNames[i];
+		    if(name != results[j+1].slice(1)) {
+			throw new Error('Ambiguous parameters in duplicate path: ' + path);
+		    }
+		}
+
 		return route;
 	    }
 	}
 
+	/* No existing route found */
 	route = new Route(path);
 	routes.push(route);
 	routes.sort(function(a, b) {
 	    return a.regex.source.length - b.regex.source.length;
 	});
 
-	console.log(routes);
-
 	return route;
     };
 
-    self.resolve = function(path, req, res) {
+    self.resolve = function(path, req, res, next) {
 	var i = 0;
 
 	(function process() {
@@ -125,8 +130,8 @@ module.exports = function() {
 		    return process();
 		});
 	    } else {
-		/* ??? */
-		console.log('Route not matched');
+		next();
+		i = routes.length;
 	    }
 	})();
     };
