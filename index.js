@@ -8,9 +8,9 @@ function Route( path ) {
     self.path = path;
 
     //Transform the path into a regexp
-    var paramNames = self.paramNames = [];
+    self.paramNames = [];
     var regex = path.replace(/:(\w+)/g, function(match, p1) {
-	paramNames.push(p1);
+	self.paramNames.push(p1);
 	return '([\\w%:\\$\\+]+)';
     });
 
@@ -23,7 +23,7 @@ function Route( path ) {
     [   'get',
 	'post',
 	'put',
-	'delete',
+	'del',
 	'head',
 	'options',
 	'patch'
@@ -46,8 +46,8 @@ function Route( path ) {
 	if(results) {
 	    var params = {};
 
-	    for(var i = 0; i < paramNames.length; i++) {
-		var name = paramNames[i];
+	    for(var i = 0; i < self.paramNames.length; i++) {
+		var name = self.paramNames[i];
 		params[name] = results[i+1];
 	    }
 
@@ -85,10 +85,10 @@ function Route( path ) {
     };
 };
 
-module.exports = function() {
+function Router() {
     var self = this;
 
-    var routes = []; /* normalized path string to Route */
+    var routes = self.routes = []; /* normalized path string to Route */
 
     /* TODO: normalize paths */
     self.path = function(path) {
@@ -113,6 +113,15 @@ module.exports = function() {
 	/* No existing route found */
 	route = new Route(path);
 	routes.push(route);
+
+	/*
+	 * TODO: sort hard paths before soft paths (params), e.g.
+	 * 
+	 * /account/guest
+	 * before
+	 * /account/:id
+	 * 
+	 */
 	routes.sort(function(a, b) {
 	    return a.regex.source.length - b.regex.source.length;
 	});
@@ -120,6 +129,7 @@ module.exports = function() {
 	return route;
     };
 
+    /* Calls next if no path is matched */
     self.resolve = function(path, req, res, next) {
 	var i = 0;
 
@@ -135,4 +145,20 @@ module.exports = function() {
 	    }
 	})();
     };
-};
+
+    /* TODO: this needs to be much more robust, e.g.:
+     * check for clashing, ambiguity, be more forgiving with
+     * prefix, etc.
+     */
+
+    //Use append to modularize your routes
+    self.append = function(prefix, router) {
+	router.routes.forEach(function(route) {
+	    routes.push(new Route(prefix + route.path));
+	});
+
+	routes.sort(function(a, b) {
+	    return a.regex.source.length - b.regex.source.length;
+	});
+    };
+}
