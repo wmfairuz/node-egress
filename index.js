@@ -1,43 +1,25 @@
-exports.Route = Route;
+function Route( path ) {
+    var self = this;
 
-function Route ( path ) {
-    var self = this; 
+    path = '/' + (path.trim()
+		  .replace(/^\/+/, '')
+		  .replace(/\/+$/, ''));
 
-    var children = {},
-	methods = {},
-	isParam,
-	str; /* if param, stripped of leading : */
+    self.path = path;
 
-    this.path = function( path ) {
-	if(typeof path === 'string') {
-	    if(path == '/' || path == '')
-		return self;
+    //Transform the path into a regexp
+    var paramNames = [];
+    var regex = path.replace(/:(\w+)/g, function(match, p1) {
+	paramNames.push(p1);
+	return '([\\w%:\\$\\+]+)';
+    });
 
-	    path = splitPath(path);
-	} else if(path instanceof Array) {
-	    if(path.length == 0)
-		return self;
-	} else {
-	    throw TypeError('Path must be string or array');
-	}
+    regex = '^' + regex + '/?';
 
-	var step = path[0];
-	var next = path.slice(1);
+    self.regex = new RegExp(regex);
 
-	if(children[step]) {
-	    return children[step].path(next);
-	} else {
-	    var route = buildRoute(path);
-	    children[step] = route;
-	    return route.path(next);
-	}
-    };
-
-    this.append = function ( route ) {
-	/* TODO: flesh this out */
-	self.children[route.str] = route;
-    };
-
+    self.methods = { };
+    
     [   'get',
 	'post',
 	'put',
@@ -45,36 +27,107 @@ function Route ( path ) {
 	'head',
 	'options',
 	'patch'
-    ].forEach(function (method) {
-	self[method] = function(callback) {
+    ].forEach(function ( method ) {
+	self[method] = function ( callback ) {
 	    self.methods[method] = callback;
 
 	    return self;
 	};
     });
 
-    /* Construct the instance */
-    path = fixPath(path);
+    self.pre = function( callback ) {
+	self.methods.pre = callback;
+
+	return self;
+    };
+
+    self.resolve = function(path, req, res, next) {
+	var results = path.match(self.regex);
+	if(results) {
+	    if(results[0] == results.input) {
+		var params = {};
+		for(var i = 0; i < paramNames.length; i++) {
+		    var name = paramNames[i];
+		    params[name] = results[i+1];
+		}
+
+		req.params = params;
+		
+		var method = ({
+		    'GET': 'get',
+		    'POST': 'post',
+		    'OUT': 'put',
+		    'DELETE': 'del',
+		    'HEAD': 'head',
+		    'OPTIONS': 'options',
+		    'PATCH': 'patch'
+		})[req.method];
+
+		if(method && self.methods[method]) {
+		    self.methods[method](req, res);;
+		} else {
+		    console.log('405 Method not allowed');
+		    /* Method not allowed */
+		    /*res.writeHead(405);
+		    res.end();*/
+		}
+
+	    } else {
+		if(self.methods.pre) {
+		    self.methods.pre(res, req, next);
+		} else {
+		    next();
+		}
+	    }
+	} else {
+	    next();
+	}
+    };
 };
 
-/* Route returned is of the first node in the path */
-function buildRoute( path ) {
-    
-}
+module.exports = function() {
+    var self = this;
 
-function fixPath( path ) {
-    if(typeof path === 'string') {
-	return splitPath(path);
-    } else if(path instanceof Array) {
-	return path;
-    } else {
-	throw TypeError('Path must be string or array');
-    }
-}
+    var routes = []; /* normalized path string to Route */
 
-function splitPath( path ) {
-    return (path.trim()
-	    .replace(/^\/+/, '')
-	    .replace(/\/+$/, '')
-	    .split('/'));
-}
+    /* TODO: normalize paths */
+    self.path = function(path) {
+	var route;
+
+	for(var i in routes) {
+	    route = routes[i];
+
+	    var result = path.match(route.regex);
+	    /* if is a full match */
+	    if(result && result[0].length == result.input.length) {
+		return route;
+	    }
+	}
+
+	route = new Route(path);
+	routes.push(route);
+	routes.sort(function(a, b) {
+	    return a.regex.source.length - b.regex.source.length;
+	});
+
+	console.log(routes);
+
+	return route;
+    };
+
+    self.resolve = function(path, req, res) {
+	var i = 0;
+
+	(function process() {
+	    if(i < routes.length) {
+		routes[i].resolve(path, req, res, function() {
+		    i++;
+		    return process();
+		});
+	    } else {
+		/* ??? */
+		console.log('Route not matched');
+	    }
+	})();
+    };
+};

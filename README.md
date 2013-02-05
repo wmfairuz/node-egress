@@ -11,7 +11,7 @@ Usage Guide
 
 	var Route = require('egress').Route;
 
-You will mostly work with the `Route` class to build routes. A `Route` has both response functions and child routes. Child routes are accessed with the `Route#path` method. Child routes are *implicit*, meaning they are created by `path` if they don't exist yet. If ambiguous routes are requested (generally multiple ':param' nodes), `path` will throw an error.
+You will mostly work with the `Route` class to build routes. A `Route` has both response functions and child routes. Child routes are accessed with the `Route#path` function. Child routes are *implicit*, meaning they are created by `path` if they don't exist yet. If ambiguous routes are requested (generally multiple ':param' nodes), `path` will throw an error.
 
 `Route` objects can be combined with `Route#append`, which is essentially an explicit form of `path`. You will usually need to create at least one `Route` with which to build all others, and that can be done with:
 
@@ -42,11 +42,11 @@ They take the form: `Route#method(<callback>)` where callback is `function (req,
 		
 		});
 		
-The `Route#pre(<callback>)` function allows work to be done before checking a `Route`'s children. The callback takes the form `function(req, res, next)` and `next()` must be called by the function for routing to continue, as in Connect middleware. `Route#pre` will be evaluated before any method functions on that `Route`.
+The `Route#pre(<callback>)` function allows work to be done before checking a `Route`'s methods or children. The callback takes the form `function(req, res, next)` and `next()` must be called by the function for routing to continue, as in Connect middleware. `Route#pre` will be evaluated before any method functions on that `Route`.
 
 	myRoute.path('a').path('b').path('c') === myRoute.path('a/b/c')
 	
-		true
+	true
 
 API
 ---
