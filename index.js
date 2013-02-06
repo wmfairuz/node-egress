@@ -1,3 +1,5 @@
+var url = require('url');
+
 function Route( path ) {
     var self = this;
 
@@ -54,26 +56,32 @@ function Route( path ) {
 	    req.params = params;
 
 	    if(results[0] == results.input) {
+		function doMethod() {
+		    var method = ({
+			'GET': 'get',
+			'POST': 'post',
+			'OUT': 'put',
+			'DELETE': 'del',
+			'HEAD': 'head',
+			'OPTIONS': 'options',
+			'PATCH': 'patch'
+		    })[req.method];
+
+		    if(method && self.methods[method]) {
+			self.methods[method](req, res);
+		    } else {
+			/* Route found, but method not defined */
+			res.writeHead(405);
+			res.end();
+		    }
+		}
+
 		if(self.methods.pre) {
 		    self.methods.pre(req, res, function() {
-			var method = ({
-			    'GET': 'get',
-			    'POST': 'post',
-			    'OUT': 'put',
-			    'DELETE': 'del',
-			    'HEAD': 'head',
-			    'OPTIONS': 'options',
-			    'PATCH': 'patch'
-			})[req.method];
-
-			if(method && self.methods[method]) {
-			    self.methods[method](req, res);
-			} else {
-			    /* Route found, but method not defined */
-			    res.writeHead(405);
-			    res.end();
-			}
+			doMethod();
 		    });
+		} else {
+		    doMethod();
 		}
 
 	    } else {
@@ -103,9 +111,9 @@ function Router() {
 	    var results = path.match(route.regex);
 
 	    if(results && results[0].length == results.input.length) {
-		for(var j = 0; j < results.length-1; j++) {
-		    var name = route.paramNames[i];
-		    if(name != results[j+1].slice(1)) {
+		for(var j = 0; j < results.length-1 && j < route.paramNames.length; j++) {
+		    var name = route.paramNames[j];
+		    if(name != results[j+1].substr(1) ) {
 			throw new Error('Ambiguous parameters in duplicate path: ' + path);
 		    }
 		}
@@ -159,11 +167,25 @@ function Router() {
     //prefix expected to be '(/<step>)+'
     self.append = function(prefix, router) {
 	router.routes.forEach(function(route) {
-	    routes.push(new Route(prefix + route.path));
+	    //yucky
+	    var nr = new Route(prefix + route.path);
+	    nr.methods = route.methods;
+	    nr.pre = route.pre;
+
+	    routes.push(nr);
 	});
 
 	routes.sort(function(a, b) {
 	    return a.regex.source.length - b.regex.source.length;
 	});
     };
+
+    /* Use with Connect */
+    self.middleware = function() {
+	return (function(req, res, next) {
+	    self.resolve(url.parse(req.url).pathname, req, res, next);
+	});
+    };
 }
+
+module.exports.Router = Router;
