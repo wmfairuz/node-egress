@@ -4,7 +4,7 @@ Egress - a pragmatic router
 Introduction
 ------------
 
-Egress is a routing module indended primarily for the creation of RESTful interfaces with an intuitive and powerful and intuitive API.
+Egress is a routing module indended primarily for the creation of RESTful APIs.
 
 Usage Guide
 -----------
