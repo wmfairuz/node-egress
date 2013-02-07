@@ -54,27 +54,31 @@ function Route( path ) {
 	    req.params = params;
 
 	    if(results[0] == results.input) {
-		var method = ({
-		    'GET': 'get',
-		    'POST': 'post',
-		    'OUT': 'put',
-		    'DELETE': 'del',
-		    'HEAD': 'head',
-		    'OPTIONS': 'options',
-		    'PATCH': 'patch'
-		})[req.method];
+		if(self.methods.pre) {
+		    self.methods.pre(req, res, function() {
+			var method = ({
+			    'GET': 'get',
+			    'POST': 'post',
+			    'OUT': 'put',
+			    'DELETE': 'del',
+			    'HEAD': 'head',
+			    'OPTIONS': 'options',
+			    'PATCH': 'patch'
+			})[req.method];
 
-		if(method && self.methods[method]) {
-		    self.methods[method](req, res);
-		} else {
-		    /* Route found, but method not defined */
-		    res.writeHead(405);
-		    res.end();
+			if(method && self.methods[method]) {
+			    self.methods[method](req, res);
+			} else {
+			    /* Route found, but method not defined */
+			    res.writeHead(405);
+			    res.end();
+			}
+		    });
 		}
 
 	    } else {
 		if(self.methods.pre) {
-		    self.methods.pre(res, req, next);
+		    self.methods.pre(req, res, next);
 		} else {
 		    next();
 		}
@@ -146,12 +150,13 @@ function Router() {
 	})();
     };
 
-    /* TODO: this needs to be much more robust, e.g.:
+    /* TODO: append() needs to be much more robust, e.g.:
      * check for clashing, ambiguity, be more forgiving with
      * prefix, etc.
      */
 
     //Use append to modularize your routes
+    //prefix expected to be '(/<step>)+'
     self.append = function(prefix, router) {
 	router.routes.forEach(function(route) {
 	    routes.push(new Route(prefix + route.path));
