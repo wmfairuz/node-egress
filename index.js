@@ -50,7 +50,7 @@ function Route( path ) {
 
 	    for(var i = 0; i < self.paramNames.length; i++) {
 		var name = self.paramNames[i];
-		params[name] = results[i+1];
+		params[name] = decodeURI(decodeURIComponent(results[i+1]));
 	    }
 
 	    req.params = params;
